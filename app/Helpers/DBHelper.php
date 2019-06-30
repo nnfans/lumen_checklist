@@ -35,6 +35,11 @@ class DBHelper {
                     break;
             }
             if ($dbOperator !== '') {
+
+                if ($operator === 'like' || $operator === '!like') {
+                    $value = str_replace('*', '%', $value);
+                }
+
                 $builder->where($field, $dbOperator, $value);
             }
         }

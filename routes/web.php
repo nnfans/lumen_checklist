@@ -21,5 +21,7 @@ $router->group(['middleware' => 'auth'], function () use ($router) {
     $router->post('/checklists', 'ChecklistController@create');
     $router->get('/checklists/{checklistId}', 'ChecklistController@find');
     $router->patch('/checklists/{checklistId}', 'ChecklistController@update');
-    $router->delete('/checklists/{checklistId}', 'ChecklistController@destroy');
+
+    $router->get('/checklists/{checklistId}/items', 'ItemController@list');
+
 });

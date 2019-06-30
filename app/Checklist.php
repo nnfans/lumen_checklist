@@ -18,4 +18,8 @@ class Checklist extends TimestampBaseModel
     public function getDueAttribute($value) {
         return Carbon::parse($value);
     }
+
+    public function getCompletedAtAttribute($value) {
+        return Carbon::parse($value);
+    }
 }
