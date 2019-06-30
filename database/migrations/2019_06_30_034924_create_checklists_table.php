@@ -20,7 +20,10 @@ class CreateChecklistsTable extends Migration
             $table->string('description', 300);
             $table->integer('urgency')->default(0);
             $table->dateTimeTz('due')->nullable();
+            $table->boolean('is_completed')->default(false);
             $table->dateTimeTz('completed_at')->nullable();
+            $table->integer('created_by');
+            $table->integer('updated_by');
             $table->timestamps();
         });
     }

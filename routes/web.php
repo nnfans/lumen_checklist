@@ -11,11 +11,11 @@
 |
 */
 
-$router->get('/', function () use ($router) {
-    return $router->app->version();
-});
 
 $router->group(['middleware' => 'auth'], function () use ($router) {
+    $router->get('/', function () use ($router) {
+        return $router->app->version();
+    });
 
     $router->get('/checklists', 'ChecklistController@list');
     $router->get('/checklists/{checklistId}', 'ChecklistController@find');

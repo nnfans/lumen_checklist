@@ -154,7 +154,7 @@ class ChecklistController extends Controller
         $checklist = $checklist->first();
 
         if(!$checklist) {
-            abort(404, "Not Found");
+            return errorJson(404, "Not Found");
         }
 
         return response()->json([
@@ -176,16 +176,14 @@ class ChecklistController extends Controller
             'description' => 'required|max:300',
             'due' => 'date|nullable',
             'urgency' => 'numeric',
-            'items' => 'required|array',
+            'items' => 'array',
             'items.*' => 'max:300',
             'task_id' => 'numeric|nullable'
         ];
         $attributes = @$requestObject['data']['attributes'];
 
         if (empty($attributes)){
-            return response()->json([
-                'status' => 400,
-                'error' => 'Bad Request']);
+            return errorJson(400);
         }
 
         $validator = Validator::make($attributes, $rules);
@@ -197,30 +195,35 @@ class ChecklistController extends Controller
             $checklist->object_domain = $attributes['object_domain'];
             $checklist->object_id = $attributes['object_id'];
             $checklist->description = $attributes['description'];
-            $checklist->due = $attributes['due'] ? (new Carbon($attributes['due'])) : null;
-            $checklist->urgency = $attributes['urgency'] ?? null;
+            $checklist->due = !empty($attributes['due']) ? (new Carbon($attributes['due'])) : null;
+                if (!empty($attributes['urgency'])) $checklist->urgency = $attributes['urgency'];
             $checklist->created_by = Auth::user()->id;
+            $checklist->updated_by = Auth::user()->id;
             $checklist->save();
 
             $checklist->refresh();
 
-            $checklistItems = $attributes['items'];
+            if (count($attributes['items'] ?? []) > 0) {
 
-            $checklistItems = array_map(function ($item) use ($checklist, $attributes) {
-                return [
-                    'checklist_id' => $checklist->id,
-                    'description' => $item,
-                    'due' => $attributes['due'] ?
-                        (new Carbon($attributes['due'])) : null,
-                    'urgency' => $attributes['urgency'] ?? null,
-                    'task_id' => $attributes['task_id'],
-                    'created_at' => Carbon::now('UTC'),
-                    'created_by' => Auth::user()->id,
-                ];
-            }, $checklistItems);
-
-            DB::table('items')
-                ->insert($checklistItems);
+                $checklistItems = $attributes['items'];
+    
+                $checklistItems = array_map(function ($item) use ($checklist, $attributes) {
+                    return [
+                        'checklist_id' => $checklist->id,
+                        'description' => $item,
+                        'due' => $attributes['due'] ?
+                            (new Carbon($attributes['due'])) : null,
+                        'urgency' => $attributes['urgency'] ?? null,
+                        'task_id' => $attributes['task_id'],
+                        'created_at' => Carbon::now('UTC'),
+                        'created_by' => Auth::user()->id,
+                        'updated_by' => Auth::user()->id
+                    ];
+                }, $checklistItems);
+    
+                DB::table('items')
+                    ->insert($checklistItems);
+            }
 
             return response()->json([
                 'data' => [
@@ -233,10 +236,7 @@ class ChecklistController extends Controller
                 ]
             ]);
         } else {
-            return response()->json([
-                'status' => 400,
-                'error' => 'Bad Request',
-                'message' => $validator->errors()->all()], 400);
+            return errorJson(400, $validator->errors()->all());
         }
     }
 }

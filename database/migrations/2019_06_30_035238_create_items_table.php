@@ -19,7 +19,8 @@ class CreateItemsTable extends Migration
             $table->foreign('checklist_id')
                 ->references('id')
                 ->on('checklists')
-                ->onDelete('cascade');
+                ->onDelete('cascade')
+                ->onUpdate('cascade');
             $table->string('description', 300);
             $table->dateTimeTz('due')->nullable();
             $table->integer('urgency')->default(0);
@@ -27,7 +28,8 @@ class CreateItemsTable extends Migration
             $table->integer('task_id')->nullable();
             $table->boolean('is_completed')->default(false);
             $table->dateTimeTz('completed_at')->nullable();
-            $table->integer('updated_by')->nullable();
+            $table->integer('created_by');
+            $table->integer('updated_by');
             $table->timestamps();
         });
     }

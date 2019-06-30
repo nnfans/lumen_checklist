@@ -36,9 +36,7 @@ class Authenticate
     public function handle($request, Closure $next, $guard = null)
     {
         if ($this->auth->guard($guard)->guest()) {
-            return response()->json([
-                'status' => 401,
-                'error' => 'Not Authorized']);
+            return errorJson(401, 'Not Authorized');
         }
 
         return $next($request);
