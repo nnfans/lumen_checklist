@@ -12,6 +12,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 use App\Checklist;
 use QueryHelper;
+use ResponseHelper;
 
 class ChecklistController extends Controller
 {
@@ -21,10 +22,7 @@ class ChecklistController extends Controller
      *
      * @return void
      */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct() {}
 
     private function _getFieldByQuery($selectFields) {
         $selectableFields = [
@@ -36,7 +34,12 @@ class ChecklistController extends Controller
             'completed_at',
             'is_completed',
             'items.description',
-            'items.due'
+            'items.due',
+            'items.urgency',
+            'items.assignee_id',
+            'items.task_id',
+            'items.is_completed',
+            'items.completed_at'
         ];
 
         $metaFields = [
@@ -46,14 +49,37 @@ class ChecklistController extends Controller
             'created_by',
             'updated_by',
             'items.id',
-            'items.checklist_id'
+            'items.checklist_id',
+            'items.created_at',
+            'items.updated_at',
+            'items.created_by',
+            'items.updated_by'
         ];
 
         $resultField = QueryHelper::selectField($selectableFields, $selectFields);
 
-        $checklistFields = array_merge( $metaFields, $resultField);
+        $checklistFields = array_merge($metaFields, $resultField);
 
         return $checklistFields;
+    }
+
+    public function _addSortQuery (Model $model, $orderQuery) {
+        $orderableFields = [
+            'id',
+            'object_domain',
+            'object_id',
+            'description',
+            'urgency',
+            'due',
+            'is_completed',
+            'completed_at',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'updated_by'
+        ];
+
+        // $orders = QueryHelper::orderField
     }
 
     public function _addFilterQuery(Model $model, $requestQuery) {
@@ -62,8 +88,8 @@ class ChecklistController extends Controller
 
     public function list (Request $request) {
         $isIncludeItems = $request->query('include') === 'items';
-        $pageLimit = $request->query('page')['limit'] ?? 10;
-        $pageOffset = $request->query('page')['offset'] ?? 0;
+        $pageLimit = abs($request->query('page')['limit'] ?? 10);
+        $pageOffset = abs($request->query('page')['offset'] ?? 0);
         $fields = $request->query('fields') ?? null;
 
         $viewedFields = $this->_getFieldByQuery($fields);
@@ -111,15 +137,7 @@ class ChecklistController extends Controller
                 'count' => count($checklists),
                 'total' => $checklistTotal
             ],
-            'links' => [
-                'first' => $request->url() . '?page[limit]=' . $pageLimit . '&page[offset]=0',
-                'last' => $request->url() . '?page[limit]=' . $pageLimit . '&page[offset]=' .
-                    (intdiv($checklistTotal - 1, $pageLimit)) * $pageLimit,
-                'next' => (intdiv($checklistTotal - 1, $pageLimit) * $pageLimit >= $pageOffset + $pageLimit) ?
-                    ($request->url() . '?page[limit]=' . $pageLimit . '&page[offset]=' . ($pageOffset + $pageLimit)) : null,
-                'prev' => ($pageOffset - $pageLimit >= 0) ?
-                    ($request->url() . '?page[limit]=' . $pageLimit . '&page[offset]=' . ($pageOffset - $pageLimit)) : null,
-            ],
+            'links' => ResponseHelper::generatePaginationLinks($request->url(), $checklistTotal, $pageLimit, $pageOffset),
             'data' => $checklists
         ]);
     }
@@ -143,10 +161,10 @@ class ChecklistController extends Controller
         }, 'items:');
 
         $itemsFields = substr($itemsFields, 0, strlen($itemsFields) - 1);
-        
-        $checklistTotal = Checklist::count();
-        $checklist = Checklist::find($checklistId);
 
+        $checklist = Checklist::select($checklistFields)
+            ->where('id', $checklistId);
+        
         if ($isIncludeItems){
             $checklist = $checklist->with($itemsFields);
         }
@@ -154,14 +172,17 @@ class ChecklistController extends Controller
         $checklist = $checklist->first();
 
         if(!$checklist) {
-            return errorJson(404, "Not Found");
+            return errorJson(404);
         }
 
         return response()->json([
             'data' => [
                 'type' => 'checklists',
                 'id' => $checklist->id,
-                'attributes' => $checklist
+                'attributes' => $checklist,
+                'links' => [
+                    'self' => $request->url() . '/' . $checklist->id
+                ]
             ]
         ]);
 

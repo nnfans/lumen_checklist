@@ -140,7 +140,7 @@ class ChecklistsTest extends TestCase
         $payload = [
             'data' => [
                 'attributes' => [
-                    'object_domain' => 'Test Success',
+                    'object_domain' => 'Test Success Item',
                     'object_id' => 1,
                     'description' => 'Success 1',
                     'items' => $items
