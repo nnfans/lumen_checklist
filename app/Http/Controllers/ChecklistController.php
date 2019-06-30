@@ -243,6 +243,71 @@ class ChecklistController extends Controller
 
     }
 
+    public function update (Request $request, $checklistId) {
+        $requestObject = json_decode($request->getContent(), true);
+
+        $rules = [
+            'object_domain' => 'max:100',
+            'object_id' => 'max:50',
+            'description' => 'max:300',
+            'due' => 'date|nullable',
+            'urgency' => 'numeric'
+        ];
+
+        if (@!$requestObject['data']['type'] === 'checklists') {
+            return errorJson(400);
+        }
+
+        $attributes = @$requestObject['data']['attributes'];
+
+        if (empty($attributes)){
+            return errorJson(400);
+        }
+
+        $validator = Validator::make($attributes, $rules);
+
+        if ($validator->passes()) {
+            $checklist = Checklist::find($checklistId);
+
+            if (!$checklist) {
+                return errorJson(404);
+            }
+
+            if ($attributes['object_domain'] ?? null) {
+                $checklist->object_domain = $attributes['object_domain'];
+            }
+            if ($attributes['object_id'] ?? null) {
+                $checklist->object_id = $attributes['object_id'];
+            }
+            if ($attributes['description'] ?? null) {
+                $checklist->description = $attributes['description'];
+            }
+            if ($attributes['due'] ?? null) {
+                $checklist->due = $attributes['due'];
+            }
+            if ($attributes['urgency'] ?? null) {
+                $checklist->urgency = $attributes['urgency'];
+            }
+
+            $checklist->save();
+            $checklist->refresh();
+
+            return response()->json([
+                'data' => [
+                    'type' => 'checklists',
+                    'id' => $checklist->id,
+                    'attributes' => $checklist,
+                    'links' => [
+                        'self' => $request->url() . '/' . $checklist->id
+                    ]
+                ]
+            ]);
+
+        } else {
+            return errorJson(400);
+        }
+    }
+
     public function create (Request $request) {
         $requestObject = json_decode($request->getContent(), true);
 
