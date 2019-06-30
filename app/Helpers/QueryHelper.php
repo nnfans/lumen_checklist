@@ -20,8 +20,4 @@ class QueryHelper {
 
         return $resultField;
     }
-
-    public static function getAllFilterQuery($requestQuery) {
-        
-    }
 }

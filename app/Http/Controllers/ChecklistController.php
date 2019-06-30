@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Illuminate\Database\Eloquent\Builder;
 
 use App\Checklist;
 use QueryHelper;
@@ -63,9 +64,8 @@ class ChecklistController extends Controller
         return $checklistFields;
     }
 
-    public function _addSortQuery (Model $model, $orderQuery) {
+    public function _addSortQuery (Builder $model, $sortQuery = '') {
         $orderableFields = [
-            'id',
             'object_domain',
             'object_id',
             'description',
@@ -79,7 +79,28 @@ class ChecklistController extends Controller
             'updated_by'
         ];
 
-        // $orders = QueryHelper::orderField
+        if (strlen($sortQuery) < 1) {
+            return $model;
+        }
+
+        if (strpos($sortQuery, ',') === false) {
+            $sorts = [ $sortQuery ];
+        } else {
+            $sorts = explode(',', $sortQuery);
+        }
+
+        foreach($sorts as $sort) {
+            $desc = substr($sort, 0, 1) === '-';
+            if ($desc){
+                $sort = substr($sort, 1);
+            }
+            if (in_array($sort, $orderableFields)) {
+                unset($orderableFields[$sort]);
+                $model->orderBy($sort, $desc ? 'DESC' : 'ASC');
+            }
+        }
+
+        return $model;
     }
 
     public function _addFilterQuery(Model $model, $requestQuery) {
@@ -90,6 +111,7 @@ class ChecklistController extends Controller
         $isIncludeItems = $request->query('include') === 'items';
         $pageLimit = abs($request->query('page')['limit'] ?? 10);
         $pageOffset = abs($request->query('page')['offset'] ?? 0);
+        $sorts = $request->query('sort') ?? '';
         $fields = $request->query('fields') ?? null;
 
         $viewedFields = $this->_getFieldByQuery($fields);
@@ -116,6 +138,8 @@ class ChecklistController extends Controller
         if ($isIncludeItems){
             $checklists->with($itemsFields);
         }
+
+        $checklists = $this->_addSortQuery($checklists, $sorts);
 
         $checklists = $checklists->get()->toArray();
 
@@ -166,7 +190,7 @@ class ChecklistController extends Controller
             ->where('id', $checklistId);
         
         if ($isIncludeItems){
-            $checklist = $checklist->with($itemsFields);
+            $checklist->with($itemsFields);
         }
 
         $checklist = $checklist->first();
