@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use App\Checklist;
 use QueryHelper;
 use ResponseHelper;
+use DBHelper;
 
 class ChecklistController extends Controller
 {
@@ -64,7 +65,7 @@ class ChecklistController extends Controller
         return $checklistFields;
     }
 
-    public function _addSortQuery (Builder $model, $sortQuery = '') {
+    public function _addSortQuery (Builder $builder, $sortQuery = '') {
         $orderableFields = [
             'object_domain',
             'object_id',
@@ -80,7 +81,7 @@ class ChecklistController extends Controller
         ];
 
         if (strlen($sortQuery) < 1) {
-            return $model;
+            return $builder;
         }
 
         if (strpos($sortQuery, ',') === false) {
@@ -96,15 +97,42 @@ class ChecklistController extends Controller
             }
             if (in_array($sort, $orderableFields)) {
                 unset($orderableFields[$sort]);
-                $model->orderBy($sort, $desc ? 'DESC' : 'ASC');
+                $builder->orderBy($sort, $desc ? 'DESC' : 'ASC');
             }
         }
 
-        return $model;
+        return $builder;
     }
 
-    public function _addFilterQuery(Model $model, $requestQuery) {
-        dd($requestQuery);
+    public function _addFilterQuery(Builder $builder, $filterQueries) {
+        $filterableFields = [
+            'object_domain',
+            'object_id',
+            'description',
+            'urgency',
+            'due',
+            'is_completed',
+            'completed_at',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'updated_by'
+        ];
+
+        if (!is_array($filterQueries)) {
+            return $builder;
+        }
+
+        foreach ($filterQueries as $field=>$query) {
+            if (!is_array($query)) {
+                continue;
+            }
+            $operator = strtolower(array_key_first($query));
+
+            DBHelper::decorateFilter($builder, $field, $query[$operator], $operator);
+        }
+        
+        return $builder;
     }
 
     public function list (Request $request) {
@@ -113,6 +141,7 @@ class ChecklistController extends Controller
         $pageOffset = abs($request->query('page')['offset'] ?? 0);
         $sorts = $request->query('sort') ?? '';
         $fields = $request->query('fields') ?? null;
+        $filters = $request->query('filter') ?? [];
 
         $viewedFields = $this->_getFieldByQuery($fields);
 
@@ -130,16 +159,18 @@ class ChecklistController extends Controller
 
         $itemsFields = substr($itemsFields, 0, strlen($itemsFields) - 1);
         
-        $checklistTotal = Checklist::count();
-        $checklists = Checklist::select($checklistFields)
-            ->limit($pageLimit)
-            ->offset($pageOffset);
+        $checklists = Checklist::select($checklistFields);
+        $this->_addFilterQuery($checklists, $filters);
+        $checklistTotal = $checklists->count();
 
         if ($isIncludeItems){
             $checklists->with($itemsFields);
         }
 
-        $checklists = $this->_addSortQuery($checklists, $sorts);
+        $checklists->limit($pageLimit)
+            ->offset($pageOffset);
+
+        $this->_addSortQuery($checklists, $sorts);
 
         $checklists = $checklists->get()->toArray();
 
