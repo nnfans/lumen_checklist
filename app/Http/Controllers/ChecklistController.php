@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use Auth;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+
+use App\Checklist;
+use QueryHelper;
 
 class ChecklistController extends Controller
 {
@@ -22,12 +26,7 @@ class ChecklistController extends Controller
         //
     }
 
-    public function list (Request $request) {
-        $isIncludeItems = $request->query('include') === 'items';
-        $pageLimit = $request->query('page[limit]') ?? 10;
-        $pageOffset = $request->query('page[offset]') ?? 0;
-        $fields = $request->query('fields') ?? null;
-
+    private function _getFieldByQuery($selectFields) {
         $selectableFields = [
             'object_domain',
             'object_id',
@@ -35,70 +34,68 @@ class ChecklistController extends Controller
             'urgency',
             'due',
             'completed_at',
-            'is_completed'
+            'is_completed',
+            'items.description',
+            'items.due'
         ];
-
-        $viewedFields = [];
 
         $metaFields = [
             'id',
             'created_at',
             'updated_at',
             'created_by',
-            'updated_by'
+            'updated_by',
+            'items.id',
+            'items.checklist_id'
         ];
 
-        if ( $fields !== null ){
-            $selectFields = explode(',', $fields);
-            foreach ($selectFields as $field) {
-                if (in_array($field, $selectableFields) && !in_array($field, $viewedFields)) {
-                    array_push($viewedFields, $fields);
-                }
-            }
-        }
+        $resultField = QueryHelper::selectField($selectableFields, $selectFields);
 
-        if (count($viewedFields) < 1) {
-            $viewedFields = $selectableFields;
-        }
+        $checklistFields = array_merge( $metaFields, $resultField);
 
-        $checklistFields = array_merge($viewedFields, $metaFields);
+        return $checklistFields;
+    }
 
-        $checklistFields = array_map(function ($field) {
-            return 'checklists.' . $field;
-        }, $checklistFields);
+    public function _addFilterQuery(Model $model, $requestQuery) {
+        dd($requestQuery);
+    }
 
-        $checklistTotal = DB::table('checklists')
-            ->select($checklistFields)
-            ->count();
+    public function list (Request $request) {
+        $isIncludeItems = $request->query('include') === 'items';
+        $pageLimit = $request->query('page[limit]') ?? 10;
+        $pageOffset = $request->query('page[offset]') ?? 0;
+        $fields = $request->query('fields') ?? null;
 
-        $checklists = DB::table('checklists')
-            ->select($checklistFields)
+        $viewedFields = $this->_getFieldByQuery($fields);
+
+        $checklistFields = array_filter($viewedFields, function ($field) {
+            return (strpos($field, 'items.') === FALSE);
+        });
+
+        $itemsFields = array_filter($viewedFields, function ($field) {
+            return (strpos($field, 'items.') !== FALSE);
+        });
+
+        $itemsFields = array_reduce($itemsFields, function($before, $after) {
+            return $before . substr($after, strlen('items.')) . ',';
+        }, 'items:');
+
+        $itemsFields = substr($itemsFields, 0, strlen($itemsFields) - 1);
+        
+        $checklistTotal = Checklist::count();
+        $checklists = Checklist::select($checklistFields)
             ->limit($pageLimit)
-            ->offset($pageOffset)
-            ->get()
-            ->toArray();
+            ->offset($pageOffset);
 
         if ($isIncludeItems){
-            $checklistIds = array_map(function ($row) {
-                return $row->id;
-            }, $checklists);
-            $items = DB::table('items')
-                ->whereIn('checklist_id', $checklistIds)
-                ->select('checklist_id', 'description')
-                ->get();
-
-            $checklists = array_map(function($checklist) use ($items) {
-                $checklistItems = $items->where('checklist_id', $checklist->id)
-                    ->pluck('description')
-                    ->all();
-                $checklist->items = $checklistItems;
-                return $checklist;
-            }, $checklists);
+            $checklists->with($itemsFields);
         }
 
+        $checklists = $checklists->get()->toArray();
+
         $checklists = array_map(function($checklist) use ($request) {
-            $id = $checklist->id;
-            unset($checklist->id);
+            $id = $checklist['id'];
+            unset($checklist['id']);
             return [
                     'type' => 'checklists',
                     'id' => $id,
@@ -127,6 +124,49 @@ class ChecklistController extends Controller
         ]);
     }
 
+    public function find (Request $request, $checklistId) {
+        $isIncludeItems = $request->query('include') === 'items';
+        $fields = $request->query('fields') ?? null;
+
+        $viewedFields = $this->_getFieldByQuery($fields);
+
+        $checklistFields = array_filter($viewedFields, function ($field) {
+            return (strpos($field, 'items.') === FALSE);
+        });
+
+        $itemsFields = array_filter($viewedFields, function ($field) {
+            return (strpos($field, 'items.') !== FALSE);
+        });
+
+        $itemsFields = array_reduce($itemsFields, function($before, $after) {
+            return $before . substr($after, strlen('items.')) . ',';
+        }, 'items:');
+
+        $itemsFields = substr($itemsFields, 0, strlen($itemsFields) - 1);
+        
+        $checklistTotal = Checklist::count();
+        $checklist = Checklist::find($checklistId);
+
+        if ($isIncludeItems){
+            $checklist = $checklist->with($itemsFields);
+        }
+
+        $checklist = $checklist->first();
+
+        if(!$checklist) {
+            abort(404, "Not Found");
+        }
+
+        return response()->json([
+            'data' => [
+                'type' => 'checklists',
+                'id' => $checklist->id,
+                'attributes' => $checklist
+            ]
+        ]);
+
+    }
+
     public function create (Request $request) {
         $requestObject = json_decode($request->getContent(), true);
 
@@ -152,40 +192,29 @@ class ChecklistController extends Controller
 
         if ($validator->passes()) {
 
-            $createdChecklist = [
-                'object_domain' => $attributes['object_domain'],
-                'object_id' => $attributes['object_id'],
-                'description' => $attributes['description'],
-                'due' => $attributes['due'] ?
-                    (new Carbon($attributes['due'])) : null,
-                'urgency' => $attributes['urgency'] ?? null,
-                'created_at' => Carbon::now(),
-                'updated_at' => null,
-                'created_by' => Auth::user()->id,
-                'updated_by' => null
-            ];
+            $checklist = new Checklist();
 
-            $insertId = DB::table('checklists')
-                ->insertGetId($createdChecklist);
+            $checklist->object_domain = $attributes['object_domain'];
+            $checklist->object_id = $attributes['object_id'];
+            $checklist->description = $attributes['description'];
+            $checklist->due = $attributes['due'] ? (new Carbon($attributes['due'])) : null;
+            $checklist->urgency = $attributes['urgency'] ?? null;
+            $checklist->created_by = Auth::user()->id;
+            $checklist->save();
 
-            $returnChecklist  = $createdChecklist;
-            $returnChecklist['due'] = (new Carbon($attributes['due']))->toIso8601String();
-            $returnChecklist['created_at'] = (new Carbon($attributes['due']))->toIso8601String();
-            $returnChecklist['task_id'] = $attributes['task_id'] ?? null;
-            $returnChecklist['is_completed'] = $attributes['is_completed'] ?? null;
-            $returnChecklist['completed_at'] = $attributes['completed_at'] ?? null;
+            $checklist->refresh();
 
             $checklistItems = $attributes['items'];
 
-            $checklistItems = array_map(function ($item) use ($insertId, $attributes) {
+            $checklistItems = array_map(function ($item) use ($checklist, $attributes) {
                 return [
-                    'checklist_id' => $insertId,
+                    'checklist_id' => $checklist->id,
                     'description' => $item,
                     'due' => $attributes['due'] ?
                         (new Carbon($attributes['due'])) : null,
                     'urgency' => $attributes['urgency'] ?? null,
                     'task_id' => $attributes['task_id'],
-                    'created_at' => Carbon::now(),
+                    'created_at' => Carbon::now('UTC'),
                     'created_by' => Auth::user()->id,
                 ];
             }, $checklistItems);
@@ -196,10 +225,10 @@ class ChecklistController extends Controller
             return response()->json([
                 'data' => [
                     'type' => 'checklists',
-                    'id' => $insertId,
-                    'attributes' => $returnChecklist,
+                    'id' => $checklist->id,
+                    'attributes' => $checklist->toArray(),
                     'links'=> [
-                        'self' => $request->url() . '/' . $insertId
+                        'self' => $request->url() . '/' . $checklist->id
                     ]
                 ]
             ]);
