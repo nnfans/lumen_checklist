@@ -390,4 +390,16 @@ class ChecklistController extends Controller
             return errorJson(400, $validator->errors()->all());
         }
     }
+
+    public function destroy ( Request $request, $checklistId ) {
+        $checklist = Checklist::find($checklistId);
+
+        if(!$checklist) {
+            return errorJson(404);
+        }
+
+        $checklist->delete();
+
+        return response()->make('', 204);
+    }
 }

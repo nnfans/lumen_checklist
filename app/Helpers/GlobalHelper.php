@@ -8,10 +8,6 @@ function errorJson($errorCode = 500, $details = null) {
         '500' => 'Server Error'
     ];
 
-    if ($errorCode === 204) {
-        return response::make('', 204);
-    }
-
     $content = [
         'status' => $errorCode,
         'message' => $httpErrorMessage[$errorCode]
