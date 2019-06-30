@@ -62,8 +62,8 @@ class ChecklistController extends Controller
 
     public function list (Request $request) {
         $isIncludeItems = $request->query('include') === 'items';
-        $pageLimit = $request->query('page[limit]') ?? 10;
-        $pageOffset = $request->query('page[offset]') ?? 0;
+        $pageLimit = $request->query('page')['limit'] ?? 10;
+        $pageOffset = $request->query('page')['offset'] ?? 0;
         $fields = $request->query('fields') ?? null;
 
         $viewedFields = $this->_getFieldByQuery($fields);
