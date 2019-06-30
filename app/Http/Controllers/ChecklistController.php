@@ -195,8 +195,12 @@ class ChecklistController extends Controller
             $checklist->object_domain = $attributes['object_domain'];
             $checklist->object_id = $attributes['object_id'];
             $checklist->description = $attributes['description'];
-            $checklist->due = !empty($attributes['due']) ? (new Carbon($attributes['due'])) : null;
-                if (!empty($attributes['urgency'])) $checklist->urgency = $attributes['urgency'];
+            if (!empty($attributes['due'])){
+                $checklist->due = (new Carbon($attributes['due']));
+            }
+            if (!empty($attributes['urgency'])){
+                $checklist->urgency = $attributes['urgency'];
+            }
             $checklist->created_by = Auth::user()->id;
             $checklist->updated_by = Auth::user()->id;
             $checklist->save();
@@ -207,18 +211,24 @@ class ChecklistController extends Controller
 
                 $checklistItems = $attributes['items'];
     
-                $checklistItems = array_map(function ($item) use ($checklist, $attributes) {
-                    return [
+                $checklistItems = array_map(function ($checklistItem) use ($checklist, $attributes) {
+                    $item = [
                         'checklist_id' => $checklist->id,
-                        'description' => $item,
-                        'due' => $attributes['due'] ?
-                            (new Carbon($attributes['due'])) : null,
-                        'urgency' => $attributes['urgency'] ?? null,
-                        'task_id' => $attributes['task_id'],
+                        'description' => $checklistItem,
                         'created_at' => Carbon::now('UTC'),
                         'created_by' => Auth::user()->id,
                         'updated_by' => Auth::user()->id
                     ];
+                    if (!empty($attributes['due'])){
+                        $item['due'] = new Carbon($attributes['due']);
+                    }
+                    if (!empty($attributes['urgency'])){
+                        $item['urgency'] = $attributes['urgency'];
+                    }
+                    if (!empty($attributes['task_id'])){
+                        $item['task_id'] = $attributes['task_id'];
+                    }
+                    return $item;
                 }, $checklistItems);
     
                 DB::table('items')
