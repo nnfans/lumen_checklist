@@ -18,10 +18,18 @@ class Item extends TimestampBaseModel
     }
 
     public function getDueAttribute($value) {
-        return Carbon::parse($value);
+        if ($value) {
+          return Carbon::parse($value);
+        } else {
+           return null;
+        }
     }
 
     public function getCompletedAtAttribute($value) {
-        return Carbon::parse($value);
+        if ($value) {
+          return Carbon::parse($value);
+        } else {
+          return null;
+        }
     }
 }
