@@ -17,6 +17,7 @@ class CreateChecklistsTable extends Migration
             $table->increments('id');
             $table->string('object_domain', 100);
             $table->string('object_id', 50);
+            $table->string('task_id', 15)->default('');
             $table->string('description', 300);
             $table->integer('urgency')->default(0);
             $table->dateTimeTz('due')->nullable();

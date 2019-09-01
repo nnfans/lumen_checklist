@@ -31,6 +31,7 @@ class ChecklistController extends Controller
             'object_id',
             'description',
             'urgency',
+            'task_id',
             'due',
             'completed_at',
             'is_completed',

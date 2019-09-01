@@ -17,7 +17,7 @@ $router->group(['middleware' => 'auth'], function () use ($router) {
         return $router->app->version();
     });
 
-    $router->get('/checklists', 'ChecklistController@list');
+    $router->get('/checklists', ['as' => 'checklists.list', 'uses' => 'ChecklistController@list']);
     $router->post('/checklists', 'ChecklistController@create');
     $router->get('/checklists/{checklistId}', 'ChecklistController@find');
     $router->patch('/checklists/{checklistId}', 'ChecklistController@update');
